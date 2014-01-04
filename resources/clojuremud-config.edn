@@ -1,0 +1,5 @@
+{:frodo/config {:web {:port 8000 
+                      :handler clojuremud.core/app
+                      }
+                :nrepl {:port 8001 
+                        :cljs-repl? true}}}

@@ -1,0 +1,22 @@
+;; This buffer is for notes you don't want to save, and for Lisp evaluation.
+;; If you want to create a file, visit that file with C-x C-f,
+;; then enter the text in that file's own buffer.
+
+verb flow
+
+string is submitted, handler dispatches off of first word, the verb
+verb is executed in context of items in room, room and global
+conflicts at each scope level result in a list started with the narrowest
+scope and ending with the largest scope
+
+verbs are functions which
+take a subject (the caller)
+the collective output
+the command line
+
+they generate a map of :
+objects that they would mutate
+their output in a list
+
+they pass this map to their next object in a chain and 'usually' return the result.
+
