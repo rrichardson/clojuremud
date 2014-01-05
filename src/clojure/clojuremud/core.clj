@@ -27,9 +27,13 @@
 
 ;;
 ;; execution
-;;
-(defmacro defverb [name doc & body]
-  `{~name (vary-meta (s/fn ~@body) assoc :doc ~doc )})
+;; 
+
+;;  This implicitly includes the params subject, room and cmdline into
+;;  the parameters of the verb. This should contain everything the
+;;  verb needs to execute
+(defmacro defverb [name doc body]
+  `{~name (vary-meta (s/fn ~'[subject room cmdline] ~body) assoc :doc ~doc )})
 
 (defmacro defverb-global [verbname doc & body]
   `(swap! db assoc-in  [:global-verbs] (defverb ~verbname ~doc ~@body)))
@@ -52,7 +56,7 @@
 
 ;;
 ;; state
-;; Titanium doesn't seem to support records, just pretend these exist
+;;
 
 (def global-sb (eval/make-sandbox "global"))
 
@@ -73,7 +77,8 @@
                                     :users {} 
                                     :verbs {}}}
                 :items {}
-                :global-verbs {} }))
+                :global-verbs {}
+                :connections {} }))
 
 (defn selcert-sandbox [name]
   (if-let [sb (get-in db [:users name :sandbox])]
@@ -85,27 +90,7 @@
 (defn channel-user [username] (get-in @db [:users username :channel]))
 (defn channel-room [roomname] (get-in @db [:roomss roomnamename :channel]))
 
-  ;; TODO commenting until I can get Titanium to work
-  ;; (def db  (tg/open "./data/"))
-  ;; (tg/transact! (when-not (tt/get-type :roomname)
-  ;;                       (tt/defkey :roomname String {:indexed-vertex? true :unique-direction :both}))
-  ;;               (when-not (tt/get-type :username)
-  ;;                       (tt/defkey :username String {:indexed-vertex? true :unique-direction :both}))
-  ;;               (when-not (tt/get-type :type)
-  ;;                       (tt/defkey :type     String {:index-vertex? true   :unique-direction :out})))
-
-  ;; (def home (first (tg/transact! (tv/upsert! :roomname {:roomname "Home"
-  ;;                                                 :shortdesc "You find yourself in a bizarre town square"
-  ;;                                                 :desc "This is a placeholder for a clever description"
-  ;;                                                 :type "room"
-  ;;                                                 :items {}
-  ;;                                                 :users {} 
-  ;;                                                 :verbs {}}))))
-
-  ;; (def users (first (tg/transact! (tv/upsert! :username {:username "Root" :type "root"}))))
-  ;; (def connection (tg/transact! (te/upconnect! (tv/refresh users) :in (tv/refresh home))))
-
-  ;; Commo
+;; Commo
   
 (def global-chat (chan))
 (def gmult (mult global-chat))
@@ -209,34 +194,26 @@
   (if verb
     (letfn [(msg-to [username msg] (go (>! (channel-user username) msg))) ]
      verb subject (rest words))
-    (prn)
-    ))
+    (prn)))
 
-  
-(defverb :say "say [text to be communicated]" [] '(go (>! (r @rooms) (pr-str msg))))
+(defverb :say "say [text to be communicated]" '(go (>! (r @rooms) (pr-str msg))))
 (defverb :gsay '(go (>! global-chat (pr-str msg))))
-(defverb :move "move direction" [dir] '(go) )
-(defverb :login "login username hashedpass" [user hpass]
+(defverb :move "move direction" '(go) )
+(defverb :login "login username hashedpass"
   (go (let [room (r @rooms)]
         (tap (get @rmult r) ws) 
         (>! room (pr-str {:action :JOIN :room r :name (:name (get @conx ws))})))))
-(defverb :logout "logout" []
+(defverb :logout "logout"
   (go (let [newmap (do-logout ws msg)]
         (info newmap)
         (map #(untap % ws) (conj (vals @rmult) gmult))
         (>! global-chat (pr-str {:action :PART :name (:name newmap)})))))
-(defverb :userlist "userlist mask" [mask]
-  (go(>! ws (pr-str {:action :USERLIST :userlist (map :name (vals @conx))} ))))
-(defverb :look "Look around you. Just look around you." []
-  (let [ws (channel-for subject)]))
-
+(defverb :userlist "userlist mask"
+  (go (>! (:channel subject) (pr-str {:action :USERLIST :userlist (map :name (vals @conx))} ))))
+(defverb :look "Look around you. Just look around you."
+    (go (>! (:channel subject) (:desc room))))
 
 (defn contextual-eval [ctx expr]
 (eval
   `(let [~@(mapcat (fn [[k v]] [k `'~v]) ctx)] ~expr)))
-
-;;(defn dyneval [] (binding [*ns* (create-ns 'the-namespace)] (eval
-;'(code-to-eval-in-ns))))
-
-
 
